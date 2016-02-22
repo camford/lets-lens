@@ -15,13 +15,13 @@ import Test.DocTest
 main ::
   IO ()
 main =
-  getSources >>= \sources -> doctest $
+  doctest $
       "-isrc"
     : "-idist/build/autogen"
     : "-optP-include"
     : "-optPdist/build/autogen/cabal_macros.h"
     : "-hide-all-packages"
-    : map ("-package="++) deps ++ sources
+    : map ("-package="++) deps ++ ["src/Lets/GetSetLens.hs"]
 
 sourceDirectories ::
   [FilePath]
