@@ -142,8 +142,8 @@ modify ::
   -> (b -> b)
   -> a
   -> a
-modify =
-  error "todo: modify"
+modify l f a =
+  set l a (f (get l a))
 
 -- | An alias for @modify@.
 (%~) ::
@@ -172,8 +172,8 @@ infixr 4 %~
   -> b
   -> a
   -> a
-(.~) =
-  error "todo: (.~)"
+(.~) l =
+  (flip (set l))
 
 infixl 5 .~
 
@@ -193,8 +193,8 @@ fmodify ::
   -> (b -> f b)
   -> a
   -> f a
-fmodify =
-  error "todo: fmodify"
+fmodify l f' a =
+  (set l a) <$> f' (get l a)
 
 -- |
 --
@@ -209,8 +209,8 @@ fmodify =
   -> f b
   -> a
   -> f a
-(|=) =
-  error "todo: (|=)"
+(|=) l b' a =
+  (set l a) <$> b'
 
 infixl 5 |=
 
@@ -227,7 +227,9 @@ infixl 5 |=
 fstL ::
   Lens (x, y) x
 fstL =
-  error "todo: fstL"
+  Lens
+    (\(_, b) c -> (c, b))   -- (flip (,) . snd)
+    (\(a, _) -> a)          -- (fst)
 
 -- |
 --
@@ -242,7 +244,9 @@ fstL =
 sndL ::
   Lens (x, y) y
 sndL =
-  error "todo: sndL"
+  Lens
+    (\(a, _) c -> (a, c))   -- ((,) . fst)
+    (\(_, b) -> b)          -- (snd)
 
 -- |
 --
@@ -267,7 +271,10 @@ mapL ::
   Ord k =>
   k
   -> Lens (Map k v) (Maybe v)
-mapL =
+mapL  =
+--  Lens
+--    (\m v -> Map.alter (\_ -> v) k m) -- (\_ -> v) <$> (get (mapL k) m) )
+--    (Map.lookup k)
   error "todo: mapL"
 
 -- |
@@ -307,8 +314,11 @@ compose ::
   Lens b c
   -> Lens a b
   -> Lens a c
-compose =
+compose = --l1 l2 =
   error "todo: compose"
+--  Lens
+--    (\x y -> set l1 (get l2 x) y)
+--    (\x -> get l1 (get l2 x))
 
 -- | An alias for @compose@.
 (|.) ::
@@ -330,7 +340,9 @@ infixr 9 |.
 identity ::
   Lens a a
 identity =
-  error "todo: identity"
+  Lens
+    (flip const)
+    id
 
 -- |
 --
