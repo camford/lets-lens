@@ -105,22 +105,29 @@ import Prelude hiding (product)
 -- | Observe that @fmap@ can be recovered from @traverse@ using @Identity@.
 --
 -- /Reminder:/ fmap :: Functor t => (a -> b) -> t a -> t b
+--
+-- > :t fmap
+-- fmap :: Functor f => (a -> b) -> f a -> f b
+-- > :t traverse
+-- traverse :: (Applicative f, Traversable t) => (a -> f b) -> t a -> f (t b)
+--
+-- data Identity a = Identity {getIdentity :: a}
 fmapT ::
   Traversable t =>
   (a -> b)
   -> t a
   -> t b
-fmapT =
-  error "todo: fmapT"
+--fmapT k x = getIdentity $ traverse (\a -> Identity (k a)) x
+fmapT k = getIdentity . traverse (Identity . k)
 
 -- | Let's refactor out the call to @traverse@ as an argument to @fmapT@.
+-- \t k -> getIdentity . t (Identity k) :: (Identity a1 -> a -> Identity c) -> a1 -> a -> c
 over :: 
   ((a -> Identity b) -> s -> Identity t)
   -> (a -> b)
   -> s
   -> t
-over =
-  error "todo: over"
+over t k = getIdentity . t (Identity . k)
 
 -- | Here is @fmapT@ again, passing @traverse@ to @over@.
 fmapTAgain ::
@@ -128,8 +135,7 @@ fmapTAgain ::
   (a -> b)
   -> t a
   -> t b
-fmapTAgain =
-  error "todo: fmapTAgain"
+fmapTAgain = over traverse
 
 -- | Let's create a type-alias for this type of function.
 type Set s t a b =
@@ -140,24 +146,49 @@ type Set s t a b =
 -- | Let's write an inverse to @over@ that does the @Identity@ wrapping &
 -- unwrapping.
 sets ::
-  ((a -> b) -> s -> t)
-  -> Set s t a b  
-sets =
-  error "todo: sets"
+  ((a -> b) -> s -> t)    -- k
+  -> Set s t a b          -- f
+--  (a -> Identity b)     -- f
+--  -> s                  -- s
+--  -> Identity t
+--sets k f s = Identity $ (k (getIdentity . f)) s
+sets t f = Identity . (t (getIdentity . f))
 
 mapped ::
   Functor f =>
   Set (f a) (f b) a b
+-- type Set s t a b =
+--   (a -> Identity b) -- f'
+--   -> (f a)          -- s
+--   -> Identity (f b)
 mapped =
-  error "todo: mapped"
+--   f' :: (a -> Identity b)
+--   s :: (f a)
+--   getIdentity :: Identity x -> x
+--   Identity :: x -> Identity x
+--   sets :: ((a -> b) -> s -> t) -> Set s t a b
+--   fmap :: Functor f => (a -> b) -> f a -> f b
+--   _goal :: Identity (f b)
+--  \f' s -> Identity _foo
+--  \f' s -> Identity (fmap _foo s)
+--  \f' s -> Identity (fmap (getIdentity . f') s)
+    sets fmap
 
 set ::
   Set s t a b
   -> s
   -> b
   -> t
-set =
-  error "todo: set"
+-- set :: (a -> Identity b) -> s -> Identity t
+-- s :: s
+-- b :: b
+-- over :: ((a -> Identity b) -> s -> Identity t) -> (a -> b) -> s -> t
+-- over :: Set s t a b -> (a -> b) -> s -> t
+-- _goal :: t
+--set set' s b = _goal
+--set set' s b = over set' _foo s
+--set set' s b = over set' (\a -> b) s
+set set' s b = over set' (const b) s
 
 ----
 
@@ -165,12 +196,24 @@ set =
 --
 -- /Reminder:/ foldMap :: (Foldable t, Monoid b) => (a -> b) -> t a -> b
 foldMapT ::
-  (Traversable t, Monoid b) =>
-  (a -> b)
+  (Traversable t, Monoid m) =>
+  (a -> m)    -- (a -> Const m b)
   -> t a
-  -> b
-foldMapT =
-  error "todo: foldMapT"
+  -> m         --- Const m (t b)
+foldMapT f =
+-- Const a b = Const {getConst :: a}
+-- f :: (a -> b)
+-- ta :: t a
+-- pure :: Applicative f => a -> f a 
+-- traverse :: (Applicative f, Traversable t) => (a -> f b)       -> t a -> f (t b)
+-- traverse ::                                   (a -> Const m b) -> t a -> Const m (t b)
+--                                                :: a -> m
+-- _goal :: b
+--
+--   f _foo
+--   \ta -> getConst . traverse (Const . f) $ ta
+     getConst . traverse (Const . f)
+
 
 -- | Let's refactor out the call to @traverse@ as an argument to @foldMapT@.
 foldMapOf ::
@@ -179,7 +222,7 @@ foldMapOf ::
   -> s
   -> r
 foldMapOf =
-  error "todo: foldMapOf"
+  \t k -> getConst . t (Const . k)
 
 -- | Here is @foldMapT@ again, passing @traverse@ to @foldMapOf@.
 foldMapTAgain ::
@@ -187,8 +230,7 @@ foldMapTAgain ::
   (a -> b)
   -> t a
   -> b
-foldMapTAgain =
-  error "todo: foldMapTAgain"
+foldMapTAgain = foldMapOf traverse
 
 -- | Let's create a type-alias for this type of function.
 type Fold s t a b =
@@ -206,13 +248,16 @@ folds ::
   -> s
   -> Const t s
 folds =
-  error "todo: folds"
+  \t k -> Const . t (getConst . k)
 
 folded ::
   Foldable f =>
   Fold (f a) (f a) a a
 folded =
-  error "todo: folded"
+  folds foldMap
+
+-- sets/fmap/mapped
+-- folds/foldMap/floded
 
 ----
 
@@ -222,12 +267,18 @@ type Get r s a =
   -> s
   -> Const r s
 
+--get ::
+--  Get a s a
+--  -> s
+--  -> a
 get ::
-  Get a s a
+  ((a -> Const a a) -> s -> Const a s) -- :: Get a s a
   -> s
   -> a
 get =
-  error "todo: get"
+--   a :: _goal
+--      \g s -> getConst $ g (Const) s
+      \g -> getConst . (g (Const))
 
 ----
 
@@ -242,20 +293,45 @@ type Traversal s t a b =
 -- | Traverse both sides of a pair.
 both ::
   Traversal (a, a) (b, b) a b
-both =
-  error "todo: both"
+--Applicative f => (a -> f b) -> (a, a) -> f (b, b)
+both f (y1, y2) = 
+-- (<$>) :: Functor f => (a -> b) -> f a -> f b
+-- (<*>) :: Applicative f => f (a -> b) -> f a -> f b
+-- x     :: (a -> f c)
+-- y     :: (a, a)
+-- (,)   :: (,) :: a -> b -> (a, b)
+       --  (,) <$> _foo
+           (,) <$> f y1 <*> f y2
 
 -- | Traverse the left side of @Either@.
 traverseLeft ::
-  Traversal (Either a x) (Either b x) a b
-traverseLeft =
-  error "todo: traverseLeft"
+--  Traversal (Either a x) (Either b x) a b
+  Applicative f =>
+  (a -> f b)
+  -> (Either a x)
+  -> f (Either b x)
+-- (<$>) :: Functor f => (a -> b) -> f a -> f b
+-- (<*>) :: Applicative f => f (a -> b) -> f a -> f b
+-- pure :: Applicative f => a -> f a
+-- Left :: a -> Either a b
+-- g     :: (a -> f b)
+-- e     :: Either a x
+traverseLeft g e = case e of
+                     Left a -> Left <$> (g a)
+                     Right x -> pure (Right x)
 
 -- | Traverse the right side of @Either@.
 traverseRight ::
-  Traversal (Either x a) (Either x b) a b
-traverseRight =
-  error "todo: traverseRight"
+--  Traversal (Either x a) (Either x b) a b
+  Applicative f =>
+  (a -> f b)
+  -> (Either x a)
+  -> f (Either x b)
+-- g     :: (a -> f b)
+-- e     :: Either x a
+traverseRight _ (Left x)  = pure (Left x)
+traverseRight g (Right x) = Right <$> (g x)
+                      
 
 type Traversal' a b =
   Traversal a a b b
@@ -423,8 +499,23 @@ infixl 5 |=
 -- (30,"abc")
 fstL ::
   Lens (a, x) (b, x) a b
-fstL =
-  error "todo: fstL"
+ 
+-- type Lens s t a b =
+--   forall f.
+--   Functor f =>
+--   (a -> f b)
+--   -> s
+--   -> f t
+
+--   forall f.
+--   Functor f =>
+--   (a -> f b)
+--   -> (a, x)
+--   -> f (b, x)
+
+--fstL g (a, x) = (\y -> (y,x)) <$> g a
+fstL g (a, x) = (flip (,) x) <$> g a
+  
 
 -- |
 --
@@ -432,8 +523,7 @@ fstL =
 -- (13,"abcdef")
 sndL ::
   Lens (x, a) (x, b) a b
-sndL =
-  error "todo: sndL"
+sndL g (x, a) = ((,) x) <$> (g a)
 
 -- |
 --
@@ -458,8 +548,28 @@ mapL ::
   Ord k =>
   k
   -> Lens (Map k v) (Map k v) (Maybe v) (Maybe v)
-mapL =
-  error "todo: mapL"
+-- type Lens s t a b =
+--   forall f.
+--   Functor f =>
+--   (a -> f b)
+--   -> s
+--   -> f t
+
+--   forall f.
+--   (Ord k, Functor f) =>
+--   k -> 
+--   ((Maybe v) -> f (Maybe v))
+--   -> (Map k v)
+--   -> f (Map k v)
+
+--   Map.lookup :: Ord k => k -> Map k a -> Maybe a
+--   Map.insert :: Ord k => k -> a -> Map k a -> Map k a
+--   Map.delete :: Ord k => k -> Map k a -> Map k a
+mapL k g mymap = action <$> look
+                 where look = (g (Map.lookup k mymap))
+                       action m = case m of
+                                    (Just v) -> Map.insert k v mymap
+                                    Nothing  -> Map.delete k mymap
 
 -- |
 --
@@ -484,8 +594,30 @@ setL ::
   Ord k =>
   k
   -> Lens (Set.Set k) (Set.Set k) Bool Bool
-setL =
-  error "todo: setL"
+-- Set.member :: Ord a => a -> Data.Set.Set a -> Bool
+-- Set.insert :: Ord a => a -> Data.Set.Set a -> Data.Set.Set a
+-- Set.delete :: Ord a => a -> Data.Set.Set a -> Data.Set.Set a
+
+-- type Lens s t a b =
+--   forall f.
+--   Functor f =>
+--   (a -> f b)
+--   -> s
+--   -> f t
+
+--   forall f.
+--   (Ord k, Functor f) =>
+--   k -> 
+--   (Bool -> f Bool)
+--   -> (Set.Set k)
+--   -> f (Set.Set k)
+--setL k p myset = undefined (Set.member k myset) 
+--setL k p myset = undefined (p (Set.member k myset))
+--setL k p myset = (\x -> if x then _foo else _bar) <$> (p (Set.member k myset))
+--setL k p myset = (\x -> if x then Set.insert k myset else Set.delete k myset) <$> (p (Set.member k myset))
+setL k p myset = insOrDel <$> (p (Set.member k myset))
+                 where insOrDel True  = Set.insert k myset
+                       insOrDel False = Set.delete k myset
 
 -- |
 --
